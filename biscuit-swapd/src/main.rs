@@ -3,6 +3,8 @@
 //! Prototype: only discovers makers through the public rendezvous points and
 //! fetches their quotes. No wallet, no funds involved. Every event is written
 //! to stdout as one JSON object per line, for Biscuit to read.
+mod known_makers;
+
 use anyhow::{Context, Result, bail};
 use futures::StreamExt;
 use libp2p::swarm::{NetworkBehaviour, SwarmEvent};
@@ -12,6 +14,8 @@ use std::collections::{HashMap, HashSet};
 use std::io::Write;
 use std::path::PathBuf;
 use std::time::Duration;
+
+use known_makers::KnownMakers;
 use swap_p2p::observe;
 use swap_p2p::protocols::quotes_cached::{self, QuoteStatus};
 use swap_p2p::protocols::rendezvous::{XmrBtcNamespace, discovery};
@@ -98,7 +102,14 @@ fn parse_args() -> Result<Args> {
     Ok(Args { tor, data_dir })
 }
 
-fn emit(value: serde_json::Value) {
+/// Start of the process, for the elapsed_ms field of every event.
+static STARTED_AT: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+
+fn emit(mut value: serde_json::Value) {
+    let elapsed = STARTED_AT.get_or_init(std::time::Instant::now).elapsed();
+    if let Some(object) = value.as_object_mut() {
+        object.insert("elapsed_ms".into(), json!(elapsed.as_millis() as u64));
+    }
     let mut stdout = std::io::stdout().lock();
     let _ = writeln!(stdout, "{value}");
     let _ = stdout.flush();
@@ -157,6 +168,7 @@ impl Summary {
 
 #[tokio::main]
 async fn main() {
+    STARTED_AT.get_or_init(std::time::Instant::now);
     rustls::crypto::ring::default_provider()
         .install_default()
         .expect("no other rustls provider to be installed yet");
@@ -236,11 +248,21 @@ async fn run() -> Result<()> {
         swarm.add_peer_address(peer_id, addr);
     }
 
+    // Makers that answered in earlier runs are dialed right away, while
+    // rendezvous discovery is still running.
+    let mut known_makers = KnownMakers::load(&args.data_dir);
+    for (peer_id, addr) in known_makers.addresses() {
+        if args.tor || !is_onion(&addr) {
+            swarm.add_peer_address(peer_id, addr);
+        }
+    }
+
     let mut summary = Summary::default();
 
     emit(json!({
         "type": "started",
         "tor": args.tor,
+        "known_makers": known_makers.len(),
         "rendezvous_points": rendezvous_ids.iter().map(|id| id.to_string()).collect::<Vec<_>>(),
     }));
 
@@ -288,6 +310,10 @@ async fn run() -> Result<()> {
                     }
                     OutEvent::Quotes(quotes_cached::Event::CachedQuotes { quotes }) => {
                         summary.offers = quotes.len();
+                        let answered = quotes.iter().map(|(peer_id, address, _, _)| (*peer_id, address.clone()));
+                        if let Err(error) = known_makers.record(answered) {
+                            tracing::warn!(error = format!("{error:#}"), "Failed to save known makers");
+                        }
                         emit(json!({
                         "type": "quotes",
                         "quotes": quotes.iter().map(|(peer_id, address, quote, version)| json!({

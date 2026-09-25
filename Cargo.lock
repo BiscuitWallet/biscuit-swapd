@@ -1020,6 +1020,7 @@ dependencies = [
  "swap-p2p",
  "tokio",
  "tor-rtcompat",
+ "tracing",
  "tracing-subscriber",
 ]
 
