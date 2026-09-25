@@ -85,6 +85,11 @@ const EMBEDDED_PATCHES: &[EmbeddedPatch] = &[
         "Adds rawTxHex() to PendingTransaction in wallet2_api.h",
         "patches/eigenwallet_0005_pending_transaction_raw_tx_hex.patch"
     ),
+    embedded_patch!(
+        "biscuit_0001_command_line_clang21",
+        "Turns the add_arg<bool> explicit specialization into a plain overload (rejected by clang 21, as in upstream Monero)",
+        "patches/biscuit_0001_command_line_clang21.patch"
+    ),
 ];
 
 /// Find the workspace target directory from OUT_DIR
