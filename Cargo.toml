@@ -115,6 +115,9 @@ vergen = { version = "8.3", default-features = false, features = ["build", "git"
 vergen-git2 = { version = "1", features = ["build"] }
 
 [patch.crates-io]
+# BISCUIT: libp2p-rendezvous 0.14.0 recreated its stateful protobuf codec on every
+# decode call, so large discovery responses (split over several reads) failed to decode.
+libp2p-rendezvous = { path = "vendor/libp2p-rendezvous" }
 # patch until new release https://github.com/thomaseizinger/rust-jsonrpc-client/pull/51
 jsonrpc_client = { git = "https://github.com/delta1/rust-jsonrpc-client.git", rev = "3b6081697cd616c952acb9c2f02d546357d35506" }
 

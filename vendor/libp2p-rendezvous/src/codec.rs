@@ -225,9 +225,12 @@ impl Decoder for Codec {
     type Error = Error;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        let mut pb: ProtobufCodec<proto::Message> = ProtobufCodec::new(MAX_MESSAGE_LEN_BYTES);
-
-        let message = match pb.decode(src)? {
+        // BISCUIT FIX: reuse the same protobuf codec across calls. It is stateful:
+        // once it has consumed the length prefix of a message that arrived only
+        // partially, it must remember that length for the next call. Creating a
+        // new codec per call made large responses (split over several reads)
+        // fail with `Deprecated("group")`.
+        let message = match self.pb.decode(src)? {
             Some(p) => p,
             None => return Ok(None),
         };
@@ -236,8 +239,24 @@ impl Decoder for Codec {
     }
 }
 
-#[derive(Clone, Default)]
-pub struct Codec {}
+pub struct Codec {
+    pb: ProtobufCodec<proto::Message>,
+}
+
+impl Default for Codec {
+    fn default() -> Self {
+        Self {
+            pb: ProtobufCodec::new(MAX_MESSAGE_LEN_BYTES),
+        }
+    }
+}
+
+impl Clone for Codec {
+    // Every stream gets a fresh decoding state.
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
 
 #[async_trait]
 impl libp2p_request_response::Codec for Codec {

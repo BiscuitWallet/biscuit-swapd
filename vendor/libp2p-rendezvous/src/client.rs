@@ -262,8 +262,10 @@ impl NetworkBehaviour for Behaviour {
                 }
                 Poll::Ready(ToSwarm::GenerateEvent(req_res::Event::OutboundFailure {
                     request_id,
-                    ..
+                    peer,
+                    error,
                 })) => {
+                    tracing::debug!(%peer, ?error, "Rendezvous outbound request failed");
                     if let Some(event) = self.event_for_outbound_failure(&request_id) {
                         return Poll::Ready(ToSwarm::GenerateEvent(event));
                     }
