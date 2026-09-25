@@ -1005,6 +1005,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "biscuit-swapd"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arti-client",
+ "futures",
+ "libp2p",
+ "rustls 0.23.37",
+ "serde",
+ "serde_json",
+ "swap",
+ "swap-env",
+ "swap-p2p",
+ "tokio",
+ "tor-rtcompat",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "bit-set"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5738,8 +5757,6 @@ dependencies = [
 [[package]]
 name = "libp2p-rendezvous"
 version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "168a444a16f569771bcb48aa081a32724079156e64a730dd900276391ccb6385"
 dependencies = [
  "async-trait",
  "asynchronous-codec 0.6.2",
