@@ -1,8 +1,17 @@
 //! biscuit-swapd: helper process that Biscuit launches for XMR/BTC atomic swaps.
 //!
-//! Prototype: only discovers makers through the public rendezvous points and
-//! fetches their quotes. No wallet, no funds involved. Every event is written
-//! to stdout as one JSON object per line, for Biscuit to read.
+//!   biscuit-swapd [discover] --tor|--clearnet --data-dir DIR
+//!       Discovers makers through the public rendezvous points and fetches
+//!       their quotes. No wallet, no funds involved.
+//!   biscuit-swapd buy --tor|--clearnet --data-dir DIR --electrum URL...
+//!                 [--electrum-socks5 HOST:PORT]
+//!   biscuit-swapd resume SWAP_ID (same options)
+//!       Runs one BTC -> XMR swap (see buy.rs); the seed and the order are
+//!       read on stdin.
+//!
+//! Every event is written to stdout as one JSON object per line, for Biscuit
+//! to read.
+mod buy;
 mod known_makers;
 
 use anyhow::{Context, Result, bail};
@@ -73,21 +82,51 @@ impl From<ping::Event> for OutEvent {
     }
 }
 
+enum Mode {
+    Discover,
+    Buy,
+    Resume(uuid::Uuid),
+}
+
 struct Args {
+    mode: Mode,
     tor: bool,
     data_dir: PathBuf,
+    electrum: Vec<String>,
+    electrum_socks5: Option<String>,
 }
 
 fn parse_args() -> Result<Args> {
+    let mut mode = Mode::Discover;
     let mut tor = None;
     let mut data_dir = None;
-    let mut args = std::env::args().skip(1);
+    let mut electrum = Vec::new();
+    let mut electrum_socks5 = None;
+    let mut args = std::env::args().skip(1).peekable();
+
+    match args.peek().map(String::as_str) {
+        Some("discover") => {
+            args.next();
+        }
+        Some("buy") => {
+            args.next();
+            mode = Mode::Buy;
+        }
+        Some("resume") => {
+            args.next();
+            let id = args.next().context("resume needs a swap ID")?;
+            mode = Mode::Resume(id.parse().context("Invalid swap ID")?);
+        }
+        _ => {}
+    }
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--tor" => tor = Some(true),
             "--clearnet" => tor = Some(false),
             "--data-dir" => data_dir = Some(PathBuf::from(args.next().context("--data-dir needs a path")?)),
+            "--electrum" => electrum.push(args.next().context("--electrum needs a URL")?),
+            "--electrum-socks5" => electrum_socks5 = Some(args.next().context("--electrum-socks5 needs HOST:PORT")?),
             other => bail!("Unknown argument: {other}"),
         }
     }
@@ -99,13 +138,13 @@ fn parse_args() -> Result<Args> {
     };
     let data_dir = data_dir.context("--data-dir is required")?;
 
-    Ok(Args { tor, data_dir })
+    Ok(Args { mode, tor, data_dir, electrum, electrum_socks5 })
 }
 
 /// Start of the process, for the elapsed_ms field of every event.
 static STARTED_AT: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
 
-fn emit(mut value: serde_json::Value) {
+pub(crate) fn emit(mut value: serde_json::Value) {
     let elapsed = STARTED_AT.get_or_init(std::time::Instant::now).elapsed();
     if let Some(object) = value.as_object_mut() {
         object.insert("elapsed_ms".into(), json!(elapsed.as_millis() as u64));
@@ -179,15 +218,34 @@ async fn main() {
         .with_env_filter(std::env::var("RUST_LOG").unwrap_or_else(|_| "warn".to_string()))
         .init();
 
-    if let Err(error) = run().await {
+    let result = match parse_args() {
+        Ok(args) => match args.mode {
+            Mode::Discover => discover(args).await,
+            Mode::Buy | Mode::Resume(_) => {
+                let resume = match args.mode {
+                    Mode::Resume(id) => Some(id),
+                    _ => None,
+                };
+                buy::run(buy::SwapArgs {
+                    tor: args.tor,
+                    data_dir: args.data_dir,
+                    electrum: args.electrum,
+                    electrum_socks5: args.electrum_socks5,
+                    resume,
+                })
+                .await
+            }
+        },
+        Err(error) => Err(error),
+    };
+
+    if let Err(error) = result {
         emit(json!({ "type": "error", "message": format!("{error:#}") }));
         std::process::exit(1);
     }
 }
 
-async fn run() -> Result<()> {
-    let args = parse_args()?;
-
+async fn discover(args: Args) -> Result<()> {
     let tor_client = if args.tor {
         emit(json!({ "type": "tor", "status": "bootstrapping" }));
         let client = swap::common::tor::create_tor_client(&args.data_dir)

@@ -513,6 +513,17 @@ pub trait ElectrumClientFactory<C> {
     fn create_client(&self, url: &str, config: &ElectrumBalancerConfig) -> Result<Arc<C>, Error>;
 }
 
+/// SOCKS5 proxy (`host:port`) for every Electrum connection of the process,
+/// set once at startup (e.g. to route Electrum through Tor). Host names are
+/// resolved by the proxy, not locally.
+static SOCKS5_PROXY: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+/// Routes every Electrum connection made after this call through `proxy`.
+/// Returns false if a proxy was already set.
+pub fn set_socks5_proxy(proxy: String) -> bool {
+    SOCKS5_PROXY.set(proxy).is_ok()
+}
+
 /// Default factory for BdkElectrumClient
 pub struct BdkElectrumClientFactory;
 
@@ -523,6 +534,11 @@ impl ElectrumClientFactory<BdkElectrumClient<Client>> for BdkElectrumClientFacto
         config: &ElectrumBalancerConfig,
     ) -> Result<Arc<BdkElectrumClient<Client>>, Error> {
         let client_config = ConfigBuilder::new()
+            .socks5(
+                SOCKS5_PROXY
+                    .get()
+                    .map(|proxy| bdk_electrum::electrum_client::Socks5Config::new(proxy.as_str())),
+            )
             .timeout(Some(config.request_timeout))
             // TODO: Why is this set to 1?
             // The goal of this crate is to extract retry logic out of the electrum client library

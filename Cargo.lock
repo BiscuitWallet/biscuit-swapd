@@ -1010,8 +1010,15 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "arti-client",
+ "bdk",
+ "bitcoin 0.32.8",
+ "bitcoin-wallet",
+ "electrum-pool",
  "futures",
+ "hex",
  "libp2p",
+ "monero-rpc-pool",
+ "rust_decimal",
  "rustls 0.23.37",
  "serde",
  "serde_json",
@@ -1022,6 +1029,8 @@ dependencies = [
  "tor-rtcompat",
  "tracing",
  "tracing-subscriber",
+ "uuid",
+ "zeroize",
 ]
 
 [[package]]
@@ -15327,6 +15336,7 @@ version = "1.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b97154e67e32c85465826e8bcc1c59429aaaf107c1e4a9e53c8d8ccd5eff88d0"
 dependencies = [
+ "serde",
  "zeroize_derive",
 ]
 

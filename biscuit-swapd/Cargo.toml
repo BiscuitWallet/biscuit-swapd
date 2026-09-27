@@ -2,7 +2,7 @@
 name = "biscuit-swapd"
 version = "0.1.0"
 edition = "2024"
-description = "Biscuit swap helper: XMR/BTC atomic swap maker discovery (prototype)."
+description = "Biscuit swap helper: BTC to XMR atomic swaps (maker discovery and swaps)."
 license = "GPL-3.0-only"
 
 [[bin]]
@@ -13,6 +13,16 @@ path = "src/main.rs"
 swap = { path = "../swap" }
 swap-env = { path = "../swap-env" }
 swap-p2p = { path = "../swap-p2p" }
+bitcoin-wallet = { path = "../bitcoin-wallet" }
+electrum-pool = { path = "../electrum-pool" }
+monero-rpc-pool = { path = "../monero-rpc-pool" }
+
+bdk = { workspace = true }
+bitcoin = { workspace = true }
+hex = { workspace = true }
+rust_decimal = { version = "1" }
+uuid = { workspace = true }
+zeroize = { workspace = true, features = ["serde"] }
 
 anyhow = { workspace = true }
 arti-client = { workspace = true, features = ["static-sqlite", "tokio", "rustls"] }
