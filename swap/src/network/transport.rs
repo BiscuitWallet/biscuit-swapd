@@ -7,7 +7,10 @@ use libp2p::noise;
 use libp2p::{PeerId, Transport, identity, yamux};
 use std::time::Duration;
 
-const AUTH_AND_MULTIPLEX_TIMEOUT: Duration = Duration::from_secs(15);
+// Covers the whole dial, including reaching an onion service: a Tor client
+// that just started (biscuit-swapd starts one per swap) often needs more than
+// 15 s for that, and every attempt was cut off before it could succeed.
+const AUTH_AND_MULTIPLEX_TIMEOUT: Duration = Duration::from_secs(60);
 // We have 5 protocols, not more than 2 of which should be active at the same time.
 const MAX_NUM_STREAMS: usize = 5;
 
