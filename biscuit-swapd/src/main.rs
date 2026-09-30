@@ -218,6 +218,23 @@ async fn main() {
         .with_env_filter(std::env::var("RUST_LOG").unwrap_or_else(|_| "warn".to_string()))
         .init();
 
+    // Never keep running on its own: stop when Biscuit goes away, even when
+    // it is killed or crashes. A swap in progress resumes at the next start,
+    // as after any stop. (On Windows, Biscuit puts the helper in a job object
+    // that closes with it.)
+    #[cfg(unix)]
+    {
+        let parent = std::os::unix::process::parent_id();
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                if std::os::unix::process::parent_id() != parent {
+                    std::process::exit(0);
+                }
+            }
+        });
+    }
+
     let result = match parse_args() {
         Ok(args) => match args.mode {
             Mode::Discover => discover(args).await,
