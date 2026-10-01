@@ -2,6 +2,7 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::cli::system_dns::SystemDnsTransport;
 use crate::network::transport::authenticate_and_multiplex;
 use anyhow::{Context, Result};
 use arti_client::TorClient;
@@ -47,18 +48,23 @@ fn new_tor_dial_limiter() -> (TorDialLimiter, TorDialPriorityTracker) {
     (dial_limiter, priority_tracker)
 }
 
-fn new_dns_transport(
-    inner: tcp::tokio::Transport,
-) -> std::io::Result<dns::tokio::Transport<tcp::tokio::Transport>> {
+/// TCP with DNS names. On Windows the names are resolved by the system (see
+/// `system_dns`): hickory's own UDP sockets set off a firewall prompt there.
+fn new_dns_transport(inner: tcp::tokio::Transport) -> std::io::Result<Boxed<tcp::tokio::TcpStream>> {
+    if cfg!(windows) {
+        return Ok(SystemDnsTransport::new(inner).boxed());
+    }
+
     if cfg!(target_os = "android") {
         return Ok(dns::tokio::Transport::custom(
             inner,
             dns::ResolverConfig::cloudflare(),
             dns::ResolverOpts::default(),
-        ));
+        )
+        .boxed());
     }
 
-    dns::tokio::Transport::system(inner)
+    Ok(dns::tokio::Transport::system(inner)?.boxed())
 }
 
 /// Creates the libp2p transport for the swap CLI.

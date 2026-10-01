@@ -1,6 +1,7 @@
 pub mod api;
 pub mod cancel_and_refund;
 pub mod command;
+pub mod system_dns;
 pub mod transport;
 pub mod watcher;
 
