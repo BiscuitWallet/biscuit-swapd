@@ -1,3 +1,5 @@
+> **This is biscuit-swapd**, the atomic swap helper shipped with [Biscuit Wallet](https://github.com/BiscuitWallet/Biscuit), a fork of [eigenwallet](https://github.com/eigenwallet/core). Its source is published here as required by the GPL-3.0. We don't take pull requests or answer questions here; for eigenwallet itself, please go to the upstream project. The rest of this file is eigenwallet's original README.
+
 # eigenwallet
 
 This is the monorepo containing the source code for all of our core projects:
